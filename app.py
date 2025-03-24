@@ -1,5 +1,5 @@
 from flask import Flask, render_template_string, request
-from flask_socketio import SocketIO, send, join_room, leave_room
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import os
 
 app = Flask(__name__)
@@ -98,9 +98,7 @@ HTML_TEMPLATE = """
                     };
 
                     peerConnection.createOffer()
-                        .then(offer => {
-                            return peerConnection.setLocalDescription(offer);
-                        })
+                        .then(offer => peerConnection.setLocalDescription(offer))
                         .then(() => {
                             socket.emit("offer", { room: roomID, offer: peerConnection.localDescription });
                         });
@@ -142,7 +140,7 @@ def index():
 @socketio.on('join_room')
 def handle_join_room(data):
     join_room(data)
-    send(f"<i>⚡ User has joined the room {data}!</i>", to=data)
+    emit("message", f"<i>⚡ User has joined the room {data}!</i>", room=data)
 
 @socketio.on('message')
 def handle_message(data):
@@ -150,19 +148,19 @@ def handle_message(data):
     msg = data["msg"]
     with open(CHAT_HISTORY_FILE, "a", encoding="utf-8") as file:
         file.write(msg + "\n")
-    send(msg, to=room)
+    emit("message", msg, room=room)
 
 @socketio.on('offer')
 def handle_offer(data):
-    send(data, to=data["room"])
+    emit('offer', data, room=data["room"])
 
 @socketio.on('answer')
 def handle_answer(data):
-    send(data, to=data["room"])
+    emit('answer', data, room=data["room"])
 
 @socketio.on('ice_candidate')
 def handle_ice_candidate(data):
-    send(data, to=data["room"])
+    emit('ice_candidate', data, room=data["room"])
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=5000)
