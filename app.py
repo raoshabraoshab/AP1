@@ -96,4 +96,18 @@ def handle_message(data):
     send(msg, to=room)  # Message is only sent to the room, removing broadcast
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, port=5000)
+    socketio.run(app, debug=True, port=5000) #yah se
+@app.route('/')
+def index():
+    return render_template_string(HTML_TEMPLATE)
+
+# Serve static socket.io.js file for Railway deployment
+@app.route('/socket.io.js')
+def serve_socketio():
+    return send_from_directory('static', 'socket.io.js')
+
+@socketio.on('join_room')
+def handle_join_room(data):
+    join_room(data)
+    send(f"<i>⚡ User has joined the room {data}!</i>", to=data)
+    
