@@ -1,5 +1,5 @@
 from flask import Flask, render_template_string, request
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, send, join_room, leave_room
 import os
 
 app = Flask(__name__)
@@ -73,61 +73,6 @@ HTML_TEMPLATE = """
                 sendMessage();
             }
         });
-
-        // WebRTC Setup
-        var localVideo = document.getElementById("localVideo");
-        var remoteVideo = document.getElementById("remoteVideo");
-        var peerConnection;
-        var config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
-
-        function startCall() {
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                .then(stream => {
-                    localVideo.srcObject = stream;
-                    peerConnection = new RTCPeerConnection(config);
-                    stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
-
-                    peerConnection.ontrack = event => {
-                        remoteVideo.srcObject = event.streams[0];
-                    };
-
-                    peerConnection.onicecandidate = event => {
-                        if (event.candidate) {
-                            socket.emit("ice_candidate", { room: roomID, candidate: event.candidate });
-                        }
-                    };
-
-                    peerConnection.createOffer()
-                        .then(offer => peerConnection.setLocalDescription(offer))
-                        .then(() => {
-                            socket.emit("offer", { room: roomID, offer: peerConnection.localDescription });
-                        });
-                });
-        }
-
-        socket.on("offer", function(data) {
-            peerConnection = new RTCPeerConnection(config);
-            peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                .then(stream => {
-                    localVideo.srcObject = stream;
-                    stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
-                });
-
-            peerConnection.createAnswer()
-                .then(answer => peerConnection.setLocalDescription(answer))
-                .then(() => {
-                    socket.emit("answer", { room: roomID, answer: peerConnection.localDescription });
-                });
-        });
-
-        socket.on("answer", function(data) {
-            peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-        });
-
-        socket.on("ice_candidate", function(data) {
-            peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-        });
     </script>
 </body>
 </html>
@@ -140,7 +85,7 @@ def index():
 @socketio.on('join_room')
 def handle_join_room(data):
     join_room(data)
-    emit("message", f"<i>⚡ User has joined the room {data}!</i>", room=data)
+    send(f"<i>⚡ User has joined the room {data}!</i>", to=data)
 
 @socketio.on('message')
 def handle_message(data):
@@ -148,19 +93,7 @@ def handle_message(data):
     msg = data["msg"]
     with open(CHAT_HISTORY_FILE, "a", encoding="utf-8") as file:
         file.write(msg + "\n")
-    emit("message", msg, room=room)
-
-@socketio.on('offer')
-def handle_offer(data):
-    emit('offer', data, room=data["room"])
-
-@socketio.on('answer')
-def handle_answer(data):
-    emit('answer', data, room=data["room"])
-
-@socketio.on('ice_candidate')
-def handle_ice_candidate(data):
-    emit('ice_candidate', data, room=data["room"])
+    send(msg, to=room)  # Message is only sent to the room, removing broadcast
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=5000)
